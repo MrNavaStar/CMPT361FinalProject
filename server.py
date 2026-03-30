@@ -134,7 +134,7 @@ def validate_user(username, password, users):
 
 # Message Send and Receive
 
-def send_text(conn, message):
+def send_text(conn: socket.socket, message: str):
     """
     What it does:
         Sends a plain (unencrypted) message to the client.
@@ -146,17 +146,48 @@ def send_text(conn, message):
     Returns:
         None
     """
-    conn.sendall(message.encode())
+    encodedMsg = message.encode("ascii")
+    sizeStr = "{:010d}".format(len(encodedMsg)).encode("ascii") # Add size to the message
+
+    conn.sendall(sizeStr + encodedMsg)
 
 
-def recv_text(conn):
+def recv_exact(conn: socket.socket, size: int):
+    """Receives and returns exactly size bytes of data."""
+    
+    data = b""
+
+    while len(data) < size: # Loop to make sure the whole message is received
+        packet = conn.recv(size - len(data))
+
+        if not packet:  # Connection closed
+            return None
+            
+        data += packet
+
+    return data
+
+
+def recv(conn: socket.socket):
+    """
+    Receives a message from the client, checking its size to
+    ensure the whole message is received.
+    """
+    sizeHeader = recv_exact(conn, 10) # Message length header, in bytes
+
+    if not sizeHeader:  # Connection closed
+        return None
+        
+    size = int(sizeHeader.decode("ascii"))
+
+    message = recv_exact(conn, size)
+    return message
+
+
+def recv_text(conn: socket.socket):
     """
     What it does:
         Receives a plain (unencrypted) message from the client.
-
-        NOTE:
-        - Currently only receives one chunk
-        - Not safe for large messages (will be improved later)
 
     Parameters:
         conn (socket) connection to client
@@ -164,11 +195,11 @@ def recv_text(conn):
     Returns:
         str received message
     """
-    data = conn.recv(BUFFER_SIZE)
+    data = recv(conn)
     return data.decode()
 
 
-def send_encrypted(conn, message, sym_key):
+def send_encrypted(conn: socket.socket, message: str, sym_key: str):
     """
     What it does:
         Encrypts a message using the symmetric key and sends it.
@@ -186,7 +217,10 @@ def send_encrypted(conn, message, sym_key):
         None
     """
     encrypted_message = aes_encrypt(message, sym_key)
-    conn.sendall(encrypted_message.encode())
+
+    sizeHeader = "{:010d}".format(len(encrypted_message)).encode()
+
+    conn.sendall(sizeHeader + encrypted_message.encode())
 
 
 def recv_decrypted(conn, sym_key):
@@ -205,27 +239,9 @@ def recv_decrypted(conn, sym_key):
     Returns:
         str decrypted message
     """
-    data = conn.recv(BUFFER_SIZE).decode()
+    data = recv(conn).decode()
     return aes_decrypt(data, sym_key)
 
-
-def recv_full_message(conn):
-    """
-    What it does:
-        Receives a full message that may be larger than BUFFER_SIZE.
-
-        Note:
-        - Not fully implemented yet
-        - Will later use looping to receive complete message
-
-    Parameters:
-        conn (socket) connection to client
-
-    Returns:
-        str received message
-    """
-    data = conn.recv(BUFFER_SIZE)
-    return data.decode()
 
 # Email Helpers
 
