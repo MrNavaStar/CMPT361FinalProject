@@ -23,3 +23,6 @@ def main():
     generate_keys("client3")
     generate_keys("client4")
     generate_keys("client5")
+
+if __name__ == "__main__":
+    main()
